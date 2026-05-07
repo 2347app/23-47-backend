@@ -1,0 +1,178 @@
+// =====================================================
+// AfterSchool — Prisma schema
+// PostgreSQL · Modelos según documento funcional/técnico
+// =====================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -------------------- USERS --------------------
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  username     String   @unique
+  displayName  String   @map("display_name")
+  passwordHash String   @map("password_hash")
+  avatarUrl    String?  @map("avatar_url")
+  bio          String?
+  theme        String   @default("madrugada-2003")
+  currentMood  String?  @map("current_mood")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Spotify
+  spotifyId            String?  @map("spotify_id")
+  spotifyAccessToken   String?  @map("spotify_access_token")
+  spotifyRefreshToken  String?  @map("spotify_refresh_token")
+  spotifyTokenExpires  DateTime? @map("spotify_token_expires")
+
+  status              UserStatus?
+  digitalRoom         DigitalRoom?
+  sentMessages        Message[]    @relation("Sender")
+  receivedMessages    Message[]    @relation("Receiver")
+  friendships         Friend[]     @relation("UserFriends")
+  friendOf            Friend[]     @relation("FriendOfUser")
+  nostalgiaSessions   NostalgiaSession[]
+  aiRecommendations   AiRecommendation[]
+  refreshTokens       RefreshToken[]
+
+  @@map("users")
+}
+
+// -------------------- FRIENDS --------------------
+model Friend {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  friendId  String   @map("friend_id")
+  status    String   @default("accepted") // pending | accepted | blocked
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User @relation("UserFriends", fields: [userId], references: [id], onDelete: Cascade)
+  friend User @relation("FriendOfUser", fields: [friendId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, friendId])
+  @@index([userId])
+  @@index([friendId])
+  @@map("friends")
+}
+
+// -------------------- MESSAGES --------------------
+model Message {
+  id         String   @id @default(uuid())
+  senderId   String   @map("sender_id")
+  receiverId String   @map("receiver_id")
+  message    String
+  type       String   @default("text") // text | nudge | sticker | spotify
+  metadata   Json?
+  readAt     DateTime? @map("read_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  sender   User @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("Receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId, createdAt])
+  @@map("messages")
+}
+
+// -------------------- USER_STATUS --------------------
+model UserStatus {
+  id            String   @id @default(uuid())
+  userId        String   @unique @map("user_id")
+  status        String   @default("online") // online | away | dnd | invisible | offline
+  customStatus  String?  @map("custom_status")
+  spotifyTrack  String?  @map("spotify_track")
+  spotifyArtist String?  @map("spotify_artist")
+  spotifyCover  String?  @map("spotify_cover")
+  spotifyUrl    String?  @map("spotify_url")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_status")
+}
+
+// -------------------- DIGITAL ROOMS --------------------
+model DigitalRoom {
+  id         String   @id @default(uuid())
+  userId     String   @unique @map("user_id")
+  theme      String   @default("madrugada-2003")
+  background String?
+  musicTheme String?  @map("music_theme")
+  ambient    String?  // rain | crt | warm | neon | calm
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items RoomItem[]
+
+  @@map("digital_rooms")
+}
+
+model RoomItem {
+  id         String   @id @default(uuid())
+  roomId     String   @map("room_id")
+  type       String   // poster | console | lamp | crt | plant | vinyl | photo
+  positionX  Int      @default(0) @map("position_x")
+  positionY  Int      @default(0) @map("position_y")
+  rotation   Int      @default(0)
+  scale      Float    @default(1)
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  room DigitalRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@map("room_items")
+}
+
+// -------------------- NOSTALGIA SESSIONS --------------------
+model NostalgiaSession {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  era       String   // verano-2000 | otono-2004 | navidad-2007 | ...
+  mood      String?
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("nostalgia_sessions")
+}
+
+// -------------------- AI RECOMMENDATIONS --------------------
+model AiRecommendation {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  recommendation String
+  type           String   // era | room | nostalgia | music
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@map("ai_recommendations")
+}
+
+// -------------------- REFRESH TOKENS --------------------
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  revokedAt DateTime? @map("revoked_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}

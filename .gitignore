@@ -1,0 +1,30 @@
+# ── Dependencies
+node_modules/
+
+# ── Builds
+dist/
+build/
+*.tsbuildinfo
+
+# ── Environment & secrets
+.env
+.env.*
+!.env.example
+
+# ── Logs
+*.log
+logs/
+npm-debug.log*
+
+# ── Testing / coverage
+coverage/
+.nyc_output/
+
+# ── Prisma
+prisma/migrations/dev.db
+
+# ── Temp
+tmp/
+temp/
+*.tmp
+*.bak
