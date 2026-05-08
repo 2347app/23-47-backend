@@ -8,6 +8,7 @@ import * as rooms from "../controllers/rooms.controller";
 import * as era from "../controllers/era.controller";
 import * as ai from "../controllers/ai.controller";
 import * as spotify from "../controllers/spotify.controller";
+import * as memories from "../controllers/memories.controller";
 
 export const apiRouter: Router = Router();
 
@@ -37,7 +38,7 @@ apiRouter.delete("/friends/:id", authMiddleware, wrap(friends.removeFriend));
 apiRouter.get("/messages/conversations", authMiddleware, wrap(messages.listConversations));
 apiRouter.get("/messages/:userId", authMiddleware, wrap(messages.getConversation));
 apiRouter.post("/messages", authMiddleware, wrap(messages.sendMessage));
-apiRouter.post("/messages/:userId/read", authMiddleware, wrap(messages.markRead));
+apiRouter.delete("/messages/:messageId", authMiddleware, wrap(messages.deleteMessage));
 
 // Rooms
 apiRouter.get("/rooms/me", authMiddleware, wrap(rooms.getMyRoom));
@@ -56,6 +57,10 @@ apiRouter.post("/eras/travel", authMiddleware, wrap(era.travel));
 apiRouter.post("/ai/era-experience", authMiddleware, wrap(ai.eraExperience));
 apiRouter.post("/ai/nostalgia-recommendations", authMiddleware, wrap(ai.nostalgia));
 apiRouter.post("/ai/rebuild-room", authMiddleware, wrap(ai.rebuild));
+
+// Memories
+apiRouter.get("/memories", authMiddleware, wrap(memories.listMemories));
+apiRouter.post("/memories", authMiddleware, wrap(memories.createMemory));
 
 // Spotify
 apiRouter.get("/spotify/login", authMiddleware, wrap(spotify.login));

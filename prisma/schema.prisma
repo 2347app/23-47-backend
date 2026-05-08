@@ -1,11 +1,10 @@
 // =====================================================
-// AfterSchool — Prisma schema
-// PostgreSQL · Modelos según documento funcional/técnico
+// 23:47 — Prisma schema
+// PostgreSQL · Neon · Driver adapter GA (Prisma 5.4+)
 // =====================================================
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -13,40 +12,59 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// -------------------- USERS --------------------
+// ==================== USERS ====================
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  username     String   @unique
-  displayName  String   @map("display_name")
-  passwordHash String   @map("password_hash")
-  avatarUrl    String?  @map("avatar_url")
+  id           String    @id @default(uuid())
+  email        String    @unique
+  username     String    @unique
+  displayName  String    @map("display_name")
+  passwordHash String    @map("password_hash")
+  avatarUrl    String?   @map("avatar_url")
   bio          String?
-  theme        String   @default("madrugada-2003")
-  currentMood  String?  @map("current_mood")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  theme        String    @default("madrugada-2003")
+  currentMood  String?   @map("current_mood")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
   // Spotify
-  spotifyId            String?  @map("spotify_id")
-  spotifyAccessToken   String?  @map("spotify_access_token")
-  spotifyRefreshToken  String?  @map("spotify_refresh_token")
-  spotifyTokenExpires  DateTime? @map("spotify_token_expires")
+  spotifyId           String?   @unique @map("spotify_id")
+  spotifyAccessToken  String?   @map("spotify_access_token")
+  spotifyRefreshToken String?   @map("spotify_refresh_token")
+  spotifyTokenExpires DateTime? @map("spotify_token_expires")
 
-  status              UserStatus?
-  digitalRoom         DigitalRoom?
-  sentMessages        Message[]    @relation("Sender")
-  receivedMessages    Message[]    @relation("Receiver")
-  friendships         Friend[]     @relation("UserFriends")
-  friendOf            Friend[]     @relation("FriendOfUser")
-  nostalgiaSessions   NostalgiaSession[]
-  aiRecommendations   AiRecommendation[]
-  refreshTokens       RefreshToken[]
+  // Relations
+  status             UserStatus?
+  digitalRoom        DigitalRoom?
+  friendships        Friend[]              @relation("UserFriends")
+  friendOf           Friend[]              @relation("FriendOfUser")
+  nostalgiaSessions  NostalgiaSession[]
+  aiRecommendations  AiRecommendation[]
+  refreshTokens      RefreshToken[]
+  roomPresences      RoomPresence[]
+  conversations      ConversationParticipant[]
+  sentMessages       Message[]
 
   @@map("users")
 }
 
-// -------------------- FRIENDS --------------------
+// ==================== USER STATUS ====================
+model UserStatus {
+  id           String   @id @default(uuid())
+  userId       String   @unique @map("user_id")
+  status       String   @default("online") // online | away | dnd | invisible | offline
+  customStatus String?  @map("custom_status")
+  spotifyTrack  String? @map("spotify_track")
+  spotifyArtist String? @map("spotify_artist")
+  spotifyCover  String? @map("spotify_cover")
+  spotifyUrl    String? @map("spotify_url")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_status")
+}
+
+// ==================== FRIENDS ====================
 model Friend {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")
@@ -63,49 +81,88 @@ model Friend {
   @@map("friends")
 }
 
-// -------------------- MESSAGES --------------------
-model Message {
+// ==================== ROOMS — Phase 2 ====================
+model Room {
+  id             String   @id @default(uuid())
+  slug           String   @unique
+  title          String
+  atmosphereType String   @map("atmosphere_type") // rain | crt | warm | neon | calm | wind
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  presence RoomPresence[]
+
+  @@map("rooms")
+}
+
+model RoomPresence {
   id         String   @id @default(uuid())
-  senderId   String   @map("sender_id")
-  receiverId String   @map("receiver_id")
-  message    String
-  type       String   @default("text") // text | nudge | sticker | spotify
-  metadata   Json?
-  readAt     DateTime? @map("read_at")
-  createdAt  DateTime @default(now()) @map("created_at")
+  roomId     String   @map("room_id")
+  userId     String   @map("user_id")
+  joinedAt   DateTime @default(now()) @map("joined_at")
+  lastSeenAt DateTime @default(now()) @map("last_seen_at")
 
-  sender   User @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver User @relation("Receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([senderId, receiverId, createdAt])
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
+  @@map("room_presence")
+}
+
+// ==================== MESSENGER — Phase 3 ====================
+model Conversation {
+  id             String   @id @default(uuid())
+  ephemeral      Boolean  @default(false)
+  atmosphereType String?  @map("atmosphere_type")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String @id @default(uuid())
+  conversationId String @map("conversation_id")
+  userId         String @map("user_id")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([conversationId])
+  @@index([userId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id             String    @id @default(uuid())
+  conversationId String    @map("conversation_id")
+  senderId       String    @map("sender_id")
+  content        String
+  messageType    String    @default("text") @map("message_type") // text | nudge | spotify
+  createdAt      DateTime  @default(now()) @map("created_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
   @@map("messages")
 }
 
-// -------------------- USER_STATUS --------------------
-model UserStatus {
-  id            String   @id @default(uuid())
-  userId        String   @unique @map("user_id")
-  status        String   @default("online") // online | away | dnd | invisible | offline
-  customStatus  String?  @map("custom_status")
-  spotifyTrack  String?  @map("spotify_track")
-  spotifyArtist String?  @map("spotify_artist")
-  spotifyCover  String?  @map("spotify_cover")
-  spotifyUrl    String?  @map("spotify_url")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("user_status")
-}
-
-// -------------------- DIGITAL ROOMS --------------------
+// ==================== DIGITAL ROOMS — Phase 7 ====================
 model DigitalRoom {
   id         String   @id @default(uuid())
   userId     String   @unique @map("user_id")
   theme      String   @default("madrugada-2003")
   background String?
   musicTheme String?  @map("music_theme")
-  ambient    String?  // rain | crt | warm | neon | calm
+  ambient    String?  // rain | crt | warm | neon | calm | wind
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
@@ -116,15 +173,15 @@ model DigitalRoom {
 }
 
 model RoomItem {
-  id         String   @id @default(uuid())
-  roomId     String   @map("room_id")
-  type       String   // poster | console | lamp | crt | plant | vinyl | photo
-  positionX  Int      @default(0) @map("position_x")
-  positionY  Int      @default(0) @map("position_y")
-  rotation   Int      @default(0)
-  scale      Float    @default(1)
-  metadata   Json?
-  createdAt  DateTime @default(now()) @map("created_at")
+  id        String   @id @default(uuid())
+  roomId    String   @map("room_id")
+  type      String   // poster | console | lamp | crt | plant | vinyl | photo
+  positionX Int      @default(0) @map("position_x")
+  positionY Int      @default(0) @map("position_y")
+  rotation  Int      @default(0)
+  scale     Float    @default(1)
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
 
   room DigitalRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
@@ -132,11 +189,11 @@ model RoomItem {
   @@map("room_items")
 }
 
-// -------------------- NOSTALGIA SESSIONS --------------------
+// ==================== AI / NOSTALGIA — Phase 4/6 ====================
 model NostalgiaSession {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")
-  era       String   // verano-2000 | otono-2004 | navidad-2007 | ...
+  era       String
   mood      String?
   metadata  Json?
   createdAt DateTime @default(now()) @map("created_at")
@@ -147,7 +204,6 @@ model NostalgiaSession {
   @@map("nostalgia_sessions")
 }
 
-// -------------------- AI RECOMMENDATIONS --------------------
 model AiRecommendation {
   id             String   @id @default(uuid())
   userId         String   @map("user_id")
@@ -162,13 +218,13 @@ model AiRecommendation {
   @@map("ai_recommendations")
 }
 
-// -------------------- REFRESH TOKENS --------------------
+// ==================== AUTH ====================
 model RefreshToken {
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id")
-  token     String   @unique
-  expiresAt DateTime @map("expires_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  token     String    @unique
+  expiresAt DateTime  @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
   revokedAt DateTime? @map("revoked_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

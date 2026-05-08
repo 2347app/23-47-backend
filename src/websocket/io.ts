@@ -8,6 +8,7 @@ import { registerChatHandlers } from "./handlers/chat";
 import { registerPresenceHandlers } from "./handlers/presence";
 import { registerStatusHandlers } from "./handlers/status";
 import { registerEraHandlers } from "./handlers/era";
+import { registerRoomHandlers } from "./handlers/rooms";
 import { setOnline, removeSocket } from "../services/presence";
 
 export interface AuthedSocket extends Socket {
@@ -54,6 +55,7 @@ export function createIo(httpServer: HttpServer): Server {
     registerPresenceHandlers(io, socket);
     registerStatusHandlers(io, socket);
     registerEraHandlers(io, socket);
+    registerRoomHandlers(io, socket);
 
     socket.on("disconnect", async () => {
       const isOffline = await removeSocket(socket.userId, socket.id);
