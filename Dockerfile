@@ -8,7 +8,7 @@ FROM node:20-slim AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npx prisma generate && npm run build
+RUN ./node_modules/.bin/prisma generate && npm run build
 
 FROM node:20-slim AS runner
 WORKDIR /app
@@ -18,4 +18,4 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY package*.json ./
 EXPOSE 4000
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]
+CMD ["sh", "-c", "./node_modules/.bin/prisma migrate deploy && node dist/server.js"]
