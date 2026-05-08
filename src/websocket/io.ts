@@ -1,7 +1,7 @@
 import type { Server as HttpServer } from "http";
 import { Server, Socket } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
-import { redisPub, redisSub } from "../services/redis";
+import { redisPub, redisSub, redisAvailable } from "../services/redis";
 import { env } from "../config/env";
 import { verifyAccessToken } from "../services/jwt";
 import { registerChatHandlers } from "./handlers/chat";
@@ -52,7 +52,12 @@ export function createIo(httpServer: HttpServer): Server {
     pingTimeout: 20_000,
   });
 
-  io.adapter(createAdapter(redisPub, redisSub));
+  if (redisAvailable && redisPub && redisSub) {
+    io.adapter(createAdapter(redisPub, redisSub));
+    console.log("[ws] Redis adapter enabled");
+  } else {
+    console.log("[ws] Redis not available — using in-memory adapter (single instance)");
+  }
 
   io.use((socket, next) => {
     const token =

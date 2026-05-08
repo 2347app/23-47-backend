@@ -19,11 +19,28 @@ import { verifyAccessToken } from "../services/jwt";
 const STATE_PREFIX = "spotify:state:";
 const STATE_TTL = 60 * 10;
 
+// ── In-memory OAuth state fallback (used when Redis is unavailable) ──────────
+const memState = new Map<string, { userId: string; expiresAt: number }>();
+async function stateSave(key: string, userId: string): Promise<void> {
+  if (redis) { await redis.set(key, userId, "EX", STATE_TTL); return; }
+  memState.set(key, { userId, expiresAt: Date.now() + STATE_TTL * 1000 });
+}
+async function stateGet(key: string): Promise<string | null> {
+  if (redis) return redis.get(key);
+  const entry = memState.get(key);
+  if (!entry || Date.now() > entry.expiresAt) { memState.delete(key); return null; }
+  return entry.userId;
+}
+async function stateDel(key: string): Promise<void> {
+  if (redis) { await redis.del(key); return; }
+  memState.delete(key);
+}
+
 export async function login(req: AuthedRequest, res: Response): Promise<void> {
   if (!req.user) throw new HttpError(401, "unauthorized");
   if (!env.spotifyClientId) throw new HttpError(500, "spotify_not_configured");
   const state = randomUUID();
-  await redis.set(`${STATE_PREFIX}${state}`, req.user.id, "EX", STATE_TTL);
+  await stateSave(`${STATE_PREFIX}${state}`, req.user.id);
   res.json({ url: buildAuthorizeUrl(state) });
 }
 
@@ -39,7 +56,7 @@ export async function authorizeRedirect(req: Request, res: Response): Promise<vo
     throw new HttpError(401, "invalid_token");
   }
   const state = randomUUID();
-  await redis.set(`${STATE_PREFIX}${state}`, userId, "EX", STATE_TTL);
+  await stateSave(`${STATE_PREFIX}${state}`, userId);
   res.redirect(buildAuthorizeUrl(state));
 }
 
@@ -55,12 +72,12 @@ export async function callback(req: Request, res: Response): Promise<void> {
     res.redirect(`${env.frontendUrl}/spotify/callback?error=missing_params`);
     return;
   }
-  const userId = await redis.get(`${STATE_PREFIX}${state}`);
+  const userId = await stateGet(`${STATE_PREFIX}${state}`);
   if (!userId) {
     res.redirect(`${env.frontendUrl}/spotify/callback?error=invalid_state`);
     return;
   }
-  await redis.del(`${STATE_PREFIX}${state}`);
+  await stateDel(`${STATE_PREFIX}${state}`);
 
   try {
     const tokens = await exchangeCode(code);

@@ -20,7 +20,7 @@ export const env = {
   port: Number(process.env.PORT ?? 4000),
 
   databaseUrl: required("DATABASE_URL"),
-  redisUrl: required("REDIS_URL", "redis://localhost:6379"),
+  redisUrl: process.env.REDIS_URL ?? null,
 
   jwtSecret: required("JWT_SECRET"),
   jwtRefreshSecret: required("JWT_REFRESH_SECRET"),
@@ -32,7 +32,7 @@ export const env = {
 
   spotifyClientId: process.env.SPOTIFY_CLIENT_ID ?? "",
   spotifyClientSecret: process.env.SPOTIFY_CLIENT_SECRET ?? "",
-  spotifyRedirectUri: process.env.SPOTIFY_REDIRECT_URI ?? "http://localhost:4000/api/spotify/callback",
+  spotifyRedirectUri: process.env.SPOTIFY_REDIRECT_URI ?? "",
 
   frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:5173",
 };
