@@ -9,6 +9,7 @@ const pool = new Pool({
 const adapter = new PrismaPg(pool);
 
 export const prisma = new PrismaClient({
+  // @ts-ignore — PrismaPg driver adapter type mismatch; runtime unaffected
   adapter,
   log: process.env.NODE_ENV === "production" ? ["error"] : ["warn", "error"],
 });

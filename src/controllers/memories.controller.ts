@@ -1,7 +1,7 @@
 import { Response } from "express";
 import { type AuthedRequest } from "../middleware/auth";
 import { prisma } from "../services/prisma";
-import { HttpError } from "../utils/errors";
+import { HttpError } from "../middleware/error";
 
 export async function listMemories(req: AuthedRequest, res: Response): Promise<void> {
   if (!req.user) throw new HttpError(401, "unauthorized");
@@ -12,9 +12,9 @@ export async function listMemories(req: AuthedRequest, res: Response): Promise<v
     take: limit,
     select: {
       id: true,
-      eraId: true,
+      era: true,
       mood: true,
-      aiSuggestion: true,
+      metadata: true,
       createdAt: true,
     },
   });
@@ -23,14 +23,19 @@ export async function listMemories(req: AuthedRequest, res: Response): Promise<v
 
 export async function createMemory(req: AuthedRequest, res: Response): Promise<void> {
   if (!req.user) throw new HttpError(401, "unauthorized");
-  const { eraId, mood, aiSuggestion } = req.body as {
-    eraId: string;
+  const { era, mood, aiSuggestion } = req.body as {
+    era: string;
     mood?: string;
     aiSuggestion?: string;
   };
-  if (!eraId) throw new HttpError(400, "eraId required");
+  if (!era) throw new HttpError(400, "era required");
   const session = await prisma.nostalgiaSession.create({
-    data: { userId: req.user.id, eraId, mood, aiSuggestion },
+    data: {
+      userId: req.user.id,
+      era,
+      mood,
+      metadata: aiSuggestion ? { aiSuggestion } : undefined,
+    },
   });
   res.status(201).json({ memory: session });
 }
