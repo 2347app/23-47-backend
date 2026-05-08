@@ -1,5 +1,5 @@
 import { Server } from "socket.io";
-import { AuthedSocket } from "../io";
+import { AuthedSocket, emitToFriends } from "../io";
 import { prisma } from "../../services/prisma";
 import { findEra } from "../../config/eras";
 
@@ -17,7 +17,9 @@ export function registerEraHandlers(io: Server, socket: AuthedSocket): void {
           data: { userId: socket.userId, era: era.id, mood: payload.mood ?? null },
         }),
       ]);
-      io.emit("era:change", { userId: socket.userId, era: era.id });
+      const eraEvent = { userId: socket.userId, era: era.id };
+      socket.emit("era:change", eraEvent);
+      await emitToFriends(io, socket.userId, "era:change", eraEvent);
       ack?.({ ok: true, era });
     } catch (err) {
       console.error("[ws] era:change error", err);

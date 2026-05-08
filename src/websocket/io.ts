@@ -10,19 +10,46 @@ import { registerStatusHandlers } from "./handlers/status";
 import { registerEraHandlers } from "./handlers/era";
 import { registerRoomHandlers } from "./handlers/rooms";
 import { setOnline, removeSocket } from "../services/presence";
+import { prisma } from "../services/prisma";
 
 export interface AuthedSocket extends Socket {
   userId: string;
   username: string;
 }
 
+// ── Helper: broadcast to each accepted friend's user room ───────────────────
+export async function emitToFriends(
+  io: Server,
+  userId: string,
+  event: string,
+  payload: unknown
+): Promise<void> {
+  const friends = await prisma.friend.findMany({
+    where: { userId, status: "accepted" },
+    select: { friendId: true },
+  });
+  for (const { friendId } of friends) {
+    io.to(`user:${friendId}`).emit(event, payload);
+  }
+}
+
 export function createIo(httpServer: HttpServer): Server {
+  const allowedOrigins = env.frontendUrl
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+
   const io = new Server(httpServer, {
     cors: {
-      origin: env.frontendUrl,
+      origin: (origin, cb) => {
+        if (!origin || allowedOrigins.includes(origin)) cb(null, true);
+        else cb(new Error(`CORS: origin ${origin} not allowed`));
+      },
       credentials: true,
     },
     transports: ["websocket", "polling"],
+    pingInterval: 25_000,
+    pingTimeout: 20_000,
   });
 
   io.adapter(createAdapter(redisPub, redisSub));
@@ -47,8 +74,8 @@ export function createIo(httpServer: HttpServer): Server {
     await setOnline(socket.userId, socket.id);
     await socket.join(`user:${socket.userId}`);
 
-    // Notify friends
-    socket.broadcast.emit("presence:online", { userId: socket.userId });
+    // Notify only friends that this user came online
+    await emitToFriends(io, socket.userId, "presence:online", { userId: socket.userId });
     socket.emit("session:ready", { userId: socket.userId });
 
     registerChatHandlers(io, socket);
@@ -60,7 +87,8 @@ export function createIo(httpServer: HttpServer): Server {
     socket.on("disconnect", async () => {
       const isOffline = await removeSocket(socket.userId, socket.id);
       if (isOffline) {
-        io.emit("presence:offline", { userId: socket.userId });
+        // Notify only friends that this user went offline
+        await emitToFriends(io, socket.userId, "presence:offline", { userId: socket.userId });
       }
     });
   });

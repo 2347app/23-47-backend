@@ -1,5 +1,5 @@
 import { Server } from "socket.io";
-import { AuthedSocket } from "../io";
+import { AuthedSocket, emitToFriends } from "../io";
 import { prisma } from "../../services/prisma";
 import { updateStatus } from "../../services/presence";
 
@@ -24,11 +24,9 @@ export function registerStatusHandlers(io: Server, socket: AuthedSocket): void {
           update: { status: next, customStatus },
         });
         await updateStatus(socket.userId, next as any, customStatus ?? undefined);
-        io.emit("status:update", {
-          userId: socket.userId,
-          status: updated.status,
-          customStatus: updated.customStatus,
-        });
+        const payload = { userId: socket.userId, status: updated.status, customStatus: updated.customStatus };
+        await emitToFriends(io, socket.userId, "status:update", payload);
+        socket.emit("status:update", payload);
         ack?.({ ok: true, status: updated });
       } catch (err) {
         console.error("[ws] status:update error", err);
