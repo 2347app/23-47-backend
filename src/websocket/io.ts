@@ -39,15 +39,24 @@ export function createIo(httpServer: HttpServer): Server {
     .map((o) => o.trim())
     .filter(Boolean);
 
+  console.log("[ws] allowed origins:", allowedOrigins);
+
+  if (env.nodeEnv === "production" && allowedOrigins.every((o) => o.includes("localhost"))) {
+    console.warn("[ws] WARNING: FRONTEND_URL contains only localhost origins in production — WebSocket connections from the real frontend will be rejected. Set FRONTEND_URL correctly in Railway.");
+  }
+
   const io = new Server(httpServer, {
     cors: {
       origin: (origin, cb) => {
         if (!origin || allowedOrigins.includes(origin)) cb(null, true);
-        else cb(new Error(`CORS: origin ${origin} not allowed`));
+        else {
+          console.warn(`[ws] CORS blocked origin: ${origin}`);
+          cb(new Error(`CORS: origin ${origin} not allowed`));
+        }
       },
       credentials: true,
     },
-    transports: ["websocket", "polling"],
+    transports: ["polling", "websocket"],
     pingInterval: 25_000,
     pingTimeout: 20_000,
   });
@@ -76,6 +85,8 @@ export function createIo(httpServer: HttpServer): Server {
 
   io.on("connection", async (rawSocket) => {
     const socket = rawSocket as AuthedSocket;
+    console.log(`[ws] connected   uid=${socket.userId} sid=${socket.id} transport=${socket.conn.transport.name}`);
+
     await setOnline(socket.userId, socket.id);
     await socket.join(`user:${socket.userId}`);
 
@@ -89,10 +100,10 @@ export function createIo(httpServer: HttpServer): Server {
     registerEraHandlers(io, socket);
     registerRoomHandlers(io, socket);
 
-    socket.on("disconnect", async () => {
+    socket.on("disconnect", async (reason) => {
+      console.log(`[ws] disconnected uid=${socket.userId} sid=${socket.id} reason=${reason}`);
       const isOffline = await removeSocket(socket.userId, socket.id);
       if (isOffline) {
-        // Notify only friends that this user went offline
         await emitToFriends(io, socket.userId, "presence:offline", { userId: socket.userId });
       }
     });
