@@ -6,7 +6,44 @@ import { generateEraExperience } from "../ai/era.service";
 import { nostalgiaRecommendation } from "../ai/nostalgia.service";
 import { rebuildRoom } from "../ai/room.service";
 import { reconstructRoom } from "../ai/nostalgia/room-builder.service";
+import { getOpenAI } from "../ai/openai";
 import { prisma } from "../services/prisma";
+import type { EnhancedRoom } from "../ai/nostalgia/types";
+
+const LIGHTING_DESC: Record<string, string> = {
+  warm_lamp_glow: "warm incandescent desk lamp casting golden light, shadows on walls",
+  cold_blue_monitor: "cold blue CRT monitor glow as the only light source",
+  crt_amber: "amber CRT screen warmth, soft scanline light",
+  mixed_ambient: "warm lamp mixed with cold monitor blue, contrasting shadows",
+  darkness_screen: "nearly dark room illuminated only by a glowing monitor screen",
+  afternoon_sun: "late afternoon sunlight filtering through partially closed blinds",
+};
+
+const TIME_DESC: Record<string, string> = {
+  afternoon: "golden late afternoon",
+  evening: "early evening dusk",
+  night: "night",
+  late_night: "2am deep night",
+};
+
+function buildRoomImagePrompt(room: EnhancedRoom): string {
+  const lighting = LIGHTING_DESC[room.atmosphere.lightingProfile] ?? "dim atmospheric lighting";
+  const time = TIME_DESC[room.atmosphere.timeOfDay] ?? "night";
+  const objects = room.items.slice(0, 10).map((i) => i.label).join(", ");
+  const grain = room.atmosphere.crtGrain ? "subtle analog film grain, " : "";
+  const foggy = room.atmosphere.depthFog ? "slight atmospheric haze in the background, " : "";
+
+  return (
+    `Authentic photorealistic ${room.era} teenage bedroom, documentary photography, ` +
+    `35mm film aesthetic, ${grain}${foggy}shallow depth of field. ` +
+    `${time}, ${lighting}. ` +
+    `Room contains: ${objects}. ` +
+    `${room.description} ` +
+    `Perspective: slightly elevated corner angle showing full room depth. ` +
+    `Lived-in, cluttered, NOT staged. Real textures, peeling posters, worn surfaces. ` +
+    `Feels like a real memory from the ${room.identity.decade}. Emotional, intimate, peligrosamente familiar.`
+  ).slice(0, 3800);
+}
 
 export async function eraExperience(req: AuthedRequest, res: Response): Promise<void> {
   if (!req.user) throw new HttpError(401, "unauthorized");
@@ -108,6 +145,25 @@ export async function reconstruct(req: AuthedRequest, res: Response): Promise<vo
 
   const result = await reconstructRoom(input);
 
+  // Generate photorealistic room image with DALL-E 3 (non-fatal)
+  let imageUrl: string | undefined;
+  try {
+    const openai = getOpenAI();
+    if (openai) {
+      const imgResp = await openai.images.generate({
+        model: "dall-e-3",
+        prompt: buildRoomImagePrompt(result),
+        n: 1,
+        size: "1792x1024",
+        quality: "standard",
+        style: "natural",
+      });
+      imageUrl = imgResp.data?.[0]?.url ?? undefined;
+    }
+  } catch (imgErr) {
+    console.warn("[reconstruct] DALL-E image generation failed (non-fatal):", imgErr);
+  }
+
   if (apply) {
     const room = await prisma.digitalRoom.upsert({
       where: { userId: req.user.id },
@@ -115,14 +171,14 @@ export async function reconstruct(req: AuthedRequest, res: Response): Promise<vo
         userId: req.user.id,
         theme: result.era,
         ambient: result.ambient,
-        background: result.background,
+        background: imageUrl ?? result.background,
         musicTheme: result.musicTheme,
         nostalgiaData: result as unknown as object,
       },
       update: {
         theme: result.era,
         ambient: result.ambient,
-        background: result.background,
+        background: imageUrl ?? result.background,
         musicTheme: result.musicTheme,
         nostalgiaData: result as unknown as object,
       },
@@ -150,5 +206,5 @@ export async function reconstruct(req: AuthedRequest, res: Response): Promise<vo
     },
   });
 
-  res.json(result);
+  res.json({ ...result, imageUrl });
 }
