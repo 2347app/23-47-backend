@@ -158,14 +158,15 @@ model Message {
 
 // ==================== DIGITAL ROOMS — Phase 7 ====================
 model DigitalRoom {
-  id         String   @id @default(uuid())
-  userId     String   @unique @map("user_id")
-  theme      String   @default("madrugada-2003")
-  background String?
-  musicTheme String?  @map("music_theme")
-  ambient    String?  // rain | crt | warm | neon | calm | wind
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(uuid())
+  userId         String   @unique @map("user_id")
+  theme          String   @default("madrugada-2003")
+  background     String?
+  musicTheme     String?  @map("music_theme")
+  ambient        String?  // rain | crt | warm | neon | calm | wind
+  nostalgiaData  Json?    @map("nostalgia_data") // full EnhancedRoom profile
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   items RoomItem[]

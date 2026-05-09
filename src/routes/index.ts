@@ -57,6 +57,7 @@ apiRouter.post("/eras/travel", authMiddleware, wrap(era.travel));
 apiRouter.post("/ai/era-experience", authMiddleware, wrap(ai.eraExperience));
 apiRouter.post("/ai/nostalgia-recommendations", authMiddleware, wrap(ai.nostalgia));
 apiRouter.post("/ai/rebuild-room", authMiddleware, wrap(ai.rebuild));
+apiRouter.post("/ai/room/reconstruct", authMiddleware, wrap(ai.reconstruct));
 
 // Memories
 apiRouter.get("/memories", authMiddleware, wrap(memories.listMemories));

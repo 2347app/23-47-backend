@@ -5,6 +5,7 @@ import { HttpError } from "../middleware/error";
 import { generateEraExperience } from "../ai/era.service";
 import { nostalgiaRecommendation } from "../ai/nostalgia.service";
 import { rebuildRoom } from "../ai/room.service";
+import { reconstructRoom } from "../ai/nostalgia/room-builder.service";
 import { prisma } from "../services/prisma";
 
 export async function eraExperience(req: AuthedRequest, res: Response): Promise<void> {
@@ -89,6 +90,61 @@ export async function rebuild(req: AuthedRequest, res: Response): Promise<void> 
     data: {
       userId: req.user.id,
       type: "room",
+      recommendation: result.description,
+      metadata: result as unknown as object,
+    },
+  });
+
+  res.json(result);
+}
+
+export async function reconstruct(req: AuthedRequest, res: Response): Promise<void> {
+  if (!req.user) throw new HttpError(401, "unauthorized");
+  const schema = z.object({
+    input: z.string().min(10).max(3000),
+    apply: z.boolean().optional(),
+  });
+  const { input, apply } = schema.parse(req.body);
+
+  const result = await reconstructRoom(input);
+
+  if (apply) {
+    const room = await prisma.digitalRoom.upsert({
+      where: { userId: req.user.id },
+      create: {
+        userId: req.user.id,
+        theme: result.era,
+        ambient: result.ambient,
+        background: result.background,
+        musicTheme: result.musicTheme,
+        nostalgiaData: result as unknown as object,
+      },
+      update: {
+        theme: result.era,
+        ambient: result.ambient,
+        background: result.background,
+        musicTheme: result.musicTheme,
+        nostalgiaData: result as unknown as object,
+      },
+    });
+    await prisma.roomItem.deleteMany({ where: { roomId: room.id } });
+    await prisma.roomItem.createMany({
+      data: result.items.map((item) => ({
+        roomId: room.id,
+        type: item.type,
+        positionX: Math.round(item.positionX),
+        positionY: Math.round(item.positionY),
+        rotation: Math.round(item.rotation),
+        scale: item.scale,
+        metadata: item.metadata as unknown as object,
+      })),
+    });
+  }
+
+  await prisma.aiRecommendation.create({
+    data: {
+      userId: req.user.id,
+      type: "room_reconstruct",
       recommendation: result.description,
       metadata: result as unknown as object,
     },
