@@ -61,6 +61,7 @@ apiRouter.post("/ai/room/reconstruct", authMiddleware, wrap(ai.reconstruct));
 apiRouter.get("/ai/cultural-memories", authMiddleware, wrap(ai.ambientMemories));
 apiRouter.get("/ai/nostalgia-packs", authMiddleware, wrap(ai.nostalgiaPacks));
 apiRouter.post("/ai/cultural-memories/event", authMiddleware, wrap(ai.trackMemoryEvent));
+apiRouter.get("/ai/room/dna", authMiddleware, wrap(ai.getRoomDna));
 
 // Memories
 apiRouter.get("/memories", authMiddleware, wrap(memories.listMemories));

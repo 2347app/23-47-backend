@@ -6,29 +6,10 @@
 
 import https from "https";
 import http from "http";
-import { createHash } from "crypto";
 import { uploadToR2, isR2Configured } from "./storage/r2.service";
 import { prisma } from "./prisma";
+import { hashRoomDNA, type RoomDNA } from "./emotional-identity-engine";
 import type { EnhancedRoom } from "../ai/nostalgia/types";
-
-// ── Emotional Hash ─────────────────────────────────────────────────────────
-// Deterministic: same emotional state → same hash → skip DALL-E
-export function buildEmotionalHash(params: {
-  era: string;
-  region?: string;
-  lightingProfile: string;
-  roomEnergy: string;
-  nostalgiaPackId?: string;
-}): string {
-  const key = [
-    params.era,
-    params.region ?? "universal",
-    params.lightingProfile,
-    params.roomEnergy,
-    params.nostalgiaPackId ?? "",
-  ].join("|");
-  return createHash("sha256").update(key).digest("hex").slice(0, 16);
-}
 
 // ── Download buffer from OpenAI (URL is temporary — must act fast) ─────────
 export async function downloadImageBuffer(url: string): Promise<Buffer> {
@@ -51,18 +32,11 @@ export async function persistRoomImage(params: {
   roomId: string;
   openAiUrl: string;
   room: EnhancedRoom;
-  region?: string;
-  nostalgiaPackId?: string;
+  dna: RoomDNA;
 }): Promise<string> {
-  const { userId, roomId, openAiUrl, room, region, nostalgiaPackId } = params;
+  const { userId, roomId, openAiUrl, dna } = params;
 
-  const emotionalHash = buildEmotionalHash({
-    era: room.era,
-    region,
-    lightingProfile: room.atmosphere.lightingProfile,
-    roomEnergy: room.identity.emotionalTone,
-    nostalgiaPackId,
-  });
+  const emotionalHash = hashRoomDNA(dna);
 
   // Cache hit — return existing R2 URL without re-uploading
   const cached = await prisma.roomImageVersion.findFirst({
@@ -70,7 +44,7 @@ export async function persistRoomImage(params: {
     orderBy: { version: "desc" },
   });
   if (cached) {
-    console.log(`[pipeline] Cache hit — reusing v${cached.version} for room ${roomId}`);
+    console.log(`[pipeline] Cache hit — reusing v${cached.version} (hash: ${emotionalHash})`);
     return cached.imageUrl;
   }
 

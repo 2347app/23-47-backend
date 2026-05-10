@@ -7,7 +7,13 @@ import { nostalgiaRecommendation } from "../ai/nostalgia.service";
 import { rebuildRoom } from "../ai/room.service";
 import { reconstructRoom } from "../ai/nostalgia/room-builder.service";
 import { getOpenAI } from "../ai/openai";
-import { persistRoomImage, buildEmotionalHash, restoreRoomImage } from "../services/room-image-pipeline";
+import { persistRoomImage, restoreRoomImage } from "../services/room-image-pipeline";
+import {
+  buildRoomDNA,
+  hashRoomDNA,
+  mutateDNA,
+  type BehaviorProfile,
+} from "../services/emotional-identity-engine";
 import { prisma } from "../services/prisma";
 import type { EnhancedRoom } from "../ai/nostalgia/types";
 import {
@@ -182,22 +188,26 @@ export async function reconstruct(req: AuthedRequest, res: Response): Promise<vo
     },
   });
 
-  // ── Emotional hash cache check ─────────────────────────────────────────
-  // Skip DALL-E if the emotional identity hasn't changed
-  const emotionalHash = buildEmotionalHash({
-    era: result.era,
+  // ── Build rich Room DNA (Emotional Identity Engine v2) ────────────────
+  const behavior = await getBehavioralPattern(req.user.id);
+  const dna = buildRoomDNA({
+    room: result,
     region: culturalProfile.region,
-    lightingProfile: result.atmosphere.lightingProfile,
-    roomEnergy: result.identity.emotionalTone,
+    emotionalDensity: result.emotionalDensity,
+    visualNoise:      result.visualNoise,
+    musicIdentity:    result.musicIdentity,
+    culturalMarkers:  result.culturalMarkers,
+    behavior,
   });
+  const emotionalHash = hashRoomDNA(dna);
   const hashUnchanged = room.emotionalHash === emotionalHash;
 
   let imageUrl: string | undefined;
 
   if (!forceImage && hashUnchanged && room.imageUrl) {
-    // Same emotional state — return cached persistent URL
+    // Same emotional identity — return cached persistent URL (0 DALL-E cost)
     imageUrl = room.imageUrl;
-    console.log(`[reconstruct] Emotional hash unchanged — reusing persistent image`);
+    console.log(`[reconstruct] DNA hash unchanged (${emotionalHash}) — reusing persistent image`);
   } else {
     // Generate new image with DALL-E 3
     try {
@@ -213,28 +223,30 @@ export async function reconstruct(req: AuthedRequest, res: Response): Promise<vo
         });
         const openAiUrl = imgResp.data?.[0]?.url;
         if (openAiUrl) {
-          // Download from OpenAI + upload to R2 (persistent)
           imageUrl = await persistRoomImage({
             userId: req.user.id,
             roomId: room.id,
             openAiUrl,
             room: result,
-            region: culturalProfile.region,
+            dna,
           });
         }
       }
     } catch (imgErr) {
       console.warn("[reconstruct] Image pipeline failed (non-fatal):", imgErr);
-      // Attempt to restore last known good image
       imageUrl = (await restoreRoomImage(room.id)) ?? room.imageUrl ?? undefined;
     }
   }
 
-  // Update room with final image URL and items
+  // Update room with final image URL, DNA, and items
   if (apply) {
     await prisma.digitalRoom.update({
       where: { id: room.id },
-      data: { background: imageUrl ?? result.background },
+      data: {
+        background:  imageUrl ?? result.background,
+        roomDna:     dna as unknown as object,
+        emotionalHash,
+      },
     });
     await prisma.roomItem.deleteMany({ where: { roomId: room.id } });
     await prisma.roomItem.createMany({
@@ -277,7 +289,31 @@ export async function reconstruct(req: AuthedRequest, res: Response): Promise<vo
     },
   });
 
-  res.json({ ...result, imageUrl });
+  res.json({ ...result, imageUrl, roomDna: dna });
+}
+
+// ── GET /ai/room/dna — returns current DNA + behavioral mutation ──────────────
+export async function getRoomDna(req: AuthedRequest, res: Response): Promise<void> {
+  if (!req.user) throw new HttpError(401, "unauthorized");
+
+  const room = await prisma.digitalRoom.findUnique({ where: { userId: req.user.id } });
+  if (!room) { res.json({ dna: null, mutationDelta: 0, shouldRegenerate: false }); return; }
+
+  const storedDna = room.roomDna as import("../services/emotional-identity-engine").RoomDNA | null;
+  if (!storedDna) { res.json({ dna: null, mutationDelta: 0, shouldRegenerate: false }); return; }
+
+  const behavior = await getBehavioralPattern(req.user.id);
+  const { dna: mutatedDna, mutationDelta, shouldRegenerate } = mutateDNA(storedDna, behavior);
+
+  // Persist the mutated DNA silently (small gradual drift, no image regen needed)
+  if (mutationDelta > 0) {
+    await prisma.digitalRoom.update({
+      where: { id: room.id },
+      data: { roomDna: mutatedDna as unknown as object },
+    });
+  }
+
+  res.json({ dna: mutatedDna, mutationDelta, shouldRegenerate });
 }
 
 export async function ambientMemories(req: AuthedRequest, res: Response): Promise<void> {

@@ -99,5 +99,9 @@ export async function reconstructRoom(input: string): Promise<EnhancedRoom> {
     musicTheme: semantic.musicIdentity,
     items: spatialObjects,
     imperfectionLevel,
+    culturalMarkers:  semantic.culturalMarkers,
+    emotionalDensity: semantic.emotionalDensity,
+    musicIdentity:    semantic.musicIdentity,
+    visualNoise:      semantic.visualNoise,
   };
 }

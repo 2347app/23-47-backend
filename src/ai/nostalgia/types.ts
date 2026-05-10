@@ -109,4 +109,9 @@ export interface EnhancedRoom {
   musicTheme: string;
   items: SpatialObject[];
   imperfectionLevel: number;
+  // Semantic fields surfaced for DNA engine
+  culturalMarkers:  string[];
+  emotionalDensity: "low" | "medium" | "high";
+  musicIdentity:    string;
+  visualNoise:      "minimal" | "medium" | "chaotic";
 }
