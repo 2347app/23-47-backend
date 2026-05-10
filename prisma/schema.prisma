@@ -36,6 +36,8 @@ model User {
   // Relations
   status             UserStatus?
   digitalRoom        DigitalRoom?
+  culturalProfile    UserCulturalProfile?
+  ambientMemoryEvents AmbientMemoryEvent[]
   friendships        Friend[]              @relation("UserFriends")
   friendOf           Friend[]              @relation("FriendOfUser")
   nostalgiaSessions  NostalgiaSession[]
@@ -218,6 +220,44 @@ model AiRecommendation {
 
   @@index([userId, type])
   @@map("ai_recommendations")
+}
+
+// ==================== CULTURAL MEMORY ENGINE — Phase 6+ ====================
+model UserCulturalProfile {
+  id                  String   @id @default(uuid())
+  userId              String   @unique @map("user_id")
+  generation          String?                          // "millenial_spanish", "gen_z_spanish"
+  region              String?                          // south_spain | madrid | catalonia | universal
+  detectedEraRange    String?  @map("detected_era_range") // "2004-2008"
+  nostalgiaPackId     String?  @map("nostalgia_pack_id")
+  musicIdentity       Json?    @map("music_identity")
+  culturalVector      Json?    @map("cultural_vector")  // scored dims from matching engine
+  ambientPreferences  Json?    @map("ambient_preferences")
+  lastReconstructedAt DateTime? @map("last_reconstructed_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_cultural_profiles")
+}
+
+// ==================== AMBIENT MEMORY EVENTS (Fase 8) ====================
+model AmbientMemoryEvent {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  memoryId      String   @map("memory_id")        // cultural-memory.ts id
+  memoryCategory String  @map("memory_category")  // tv | music | games | internet …
+  hourOfDay     Int      @map("hour_of_day")       // 0-23
+  dayOfWeek     Int      @map("day_of_week")       // 0=Sun … 6=Sat
+  dismissed     Boolean  @default(false)           // did user dismiss immediately?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, hourOfDay])
+  @@index([userId, memoryCategory])
+  @@map("ambient_memory_events")
 }
 
 // ==================== AUTH ====================

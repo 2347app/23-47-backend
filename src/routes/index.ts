@@ -58,6 +58,9 @@ apiRouter.post("/ai/era-experience", authMiddleware, wrap(ai.eraExperience));
 apiRouter.post("/ai/nostalgia-recommendations", authMiddleware, wrap(ai.nostalgia));
 apiRouter.post("/ai/rebuild-room", authMiddleware, wrap(ai.rebuild));
 apiRouter.post("/ai/room/reconstruct", authMiddleware, wrap(ai.reconstruct));
+apiRouter.get("/ai/cultural-memories", authMiddleware, wrap(ai.ambientMemories));
+apiRouter.get("/ai/nostalgia-packs", authMiddleware, wrap(ai.nostalgiaPacks));
+apiRouter.post("/ai/cultural-memories/event", authMiddleware, wrap(ai.trackMemoryEvent));
 
 // Memories
 apiRouter.get("/memories", authMiddleware, wrap(memories.listMemories));

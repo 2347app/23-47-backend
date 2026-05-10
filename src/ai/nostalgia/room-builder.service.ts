@@ -12,26 +12,35 @@ import { buildAtmosphere, calculateImperfectionLevel } from "./atmosphere.servic
 import { jsonChat, getOpenAI }      from "../openai";
 import { findEra }                  from "../../config/eras";
 import type { EnhancedRoom, SemanticProfile } from "./types";
+import { detectYear, buildCulturalProfileFromInput } from "../../services/cultural-memory.service";
+import { buildTemporalContextString } from "../../data/temporal-world";
 
 // ── Phase 7: Atmospheric description (OpenAI) ────────────────────────────────
-async function generatePoetry(semantic: SemanticProfile): Promise<{
-  description: string;
-  narrativeMoment: string;
-}> {
+async function generatePoetry(
+  semantic: SemanticProfile,
+  rawInput?: string,
+): Promise<{ description: string; narrativeMoment: string }> {
   if (!getOpenAI()) return poetryFallback(semantic);
+
+  // Temporal context — ground the poetry in real cultural facts of the year
+  const detectedYear = rawInput ? detectYear(rawInput) : 2005;
+  const culturalProfile = rawInput ? buildCulturalProfileFromInput(rawInput) : null;
+  const temporalCtx = buildTemporalContextString(detectedYear, culturalProfile?.region);
 
   try {
     return await jsonChat<{ description: string; narrativeMoment: string }>({
       system:
-        "Escribes descripciones cinematográficas de habitaciones de adolescentes de los 2000. " +
+        "Escribes descripciones cinematográficas de habitaciones de adolescentes españoles de los 2000. " +
         "Máx 2 frases por campo. Sin clichés de 'buenos tiempos'. SÍ: sensaciones físicas reales. " +
-        "Temperatura, luz, olor implícito, presencia humana invisible. En español.",
-      user: `Habitación: ${semantic.roomEnergy}. Persona: ${semantic.personality}. ` +
+        "Temperatura, luz, olor implícito, presencia humana invisible. Cultura española específica. En español.",
+      user:
+        `Habitación: ${semantic.roomEnergy}. Persona: ${semantic.personality}. ` +
         `Época: ${semantic.era}. Referencias culturales: ${semantic.culturalMarkers.join(", ")}. ` +
         `Hora: ${semantic.timePattern}.\n\n` +
+        `Contexto histórico real (España ${detectedYear}): ${temporalCtx}\n\n` +
         `Devuelve JSON:\n` +
-        `- description: 2 frases que describan la habitación como si fuera un recuerdo parcial. Sensaciones físicas. Luz, temperatura.\n` +
-        `- narrativeMoment: 1 frase que capture quién vivía aquí y qué estaba haciendo en ese instante exacto.`,
+        `- description: 2 frases que describan la habitación como si fuera un recuerdo parcial. Sensaciones físicas. Luz, temperatura. Detalles culturales reales del año.\n` +
+        `- narrativeMoment: 1 frase que capture quién vivía aquí y qué estaba haciendo en ese instante exacto. Puede mencionar algo cultural específico del año.`,
       temperature: 0.93,
     });
   } catch {
@@ -54,7 +63,7 @@ function poetryFallback(semantic: SemanticProfile): { description: string; narra
 
 // ── Main orchestrator ─────────────────────────────────────────────────────────
 export async function reconstructRoom(input: string): Promise<EnhancedRoom> {
-  // Phase 1 — Semantic Parser
+  // Phase 1 — Semantic Parser (temporal world injected inside)
   const semantic = await parseNostalgiaInput(input);
 
   // Phase 2 — Identity Reconstruction
@@ -73,8 +82,8 @@ export async function reconstructRoom(input: string): Promise<EnhancedRoom> {
   // Phase 4 — Spatial Narrative: place objects with weight and zone logic
   const spatialObjects = buildSpatialLayout(ontologyObjects, identity, imperfectionLevel);
 
-  // Phase 7 — Atmospheric description (OpenAI, async, can fail gracefully)
-  const { description, narrativeMoment } = await generatePoetry(semantic);
+  // Phase 7 — Atmospheric description (OpenAI, raw input passed for temporal context)
+  const { description, narrativeMoment } = await generatePoetry(semantic, input);
 
   // Era lookup for backward-compatible fields
   const era = findEra(semantic.era) ?? findEra("madrugada-2003")!;

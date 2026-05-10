@@ -7,19 +7,28 @@
 import { jsonChat, getOpenAI } from "../openai";
 import { ERAS } from "../../config/eras";
 import type { SemanticProfile, LightingProfile } from "./types";
+import { detectYear } from "../../services/cultural-memory.service";
+import { buildTemporalContextString } from "../../data/temporal-world";
 
 const ERA_IDS = ERAS.map((e) => e.id).join(", ");
 
 export async function parseNostalgiaInput(input: string): Promise<SemanticProfile> {
   if (!getOpenAI()) return fallbackParse(input);
 
+  // Inject temporal world context — gives AI historically accurate cultural anchors
+  const detectedYear = detectYear(input);
+  const temporalCtx = buildTemporalContextString(detectedYear);
+
   const system =
-    "Eres un analizador semántico de nostalgia digital. " +
+    "Eres un analizador semántico de nostalgia digital española. " +
     "Analiza la descripción del usuario sobre sus recuerdos de internet/adolescencia 2000-2009. " +
     "Tu objetivo: extraer la IDENTIDAD EMOCIONAL. No solo qué objetos tenía — quién ERA esa persona. " +
-    "Piensa en personalidad, energía emocional, contexto cultural. Output: JSON estricto.";
+    "Piensa en personalidad, energía emocional, contexto cultural ESPAÑOL específico. Output: JSON estricto.";
 
   const user = `Entrada del usuario: "${input}"
+
+Contexto cultural real de España ${detectedYear} (úsalo para enriquecer los culturalMarkers):
+${temporalCtx}
 
 Eras disponibles: ${ERA_IDS}
 
