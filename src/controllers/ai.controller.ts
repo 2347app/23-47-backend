@@ -7,6 +7,7 @@ import { nostalgiaRecommendation } from "../ai/nostalgia.service";
 import { rebuildRoom } from "../ai/room.service";
 import { reconstructRoom } from "../ai/nostalgia/room-builder.service";
 import { getOpenAI } from "../ai/openai";
+import { persistRoomImage, buildEmotionalHash, restoreRoomImage } from "../services/room-image-pipeline";
 import { prisma } from "../services/prisma";
 import type { EnhancedRoom } from "../ai/nostalgia/types";
 import {
@@ -160,14 +161,45 @@ export async function reconstruct(req: AuthedRequest, res: Response): Promise<vo
   const { input, apply, forceImage } = schema.parse(req.body);
 
   const result = await reconstructRoom(input);
+  const culturalProfile = buildCulturalProfileFromInput(input);
 
-  // Check if user already has a persisted image to avoid unnecessary DALL-E costs
-  const existingRoom = await prisma.digitalRoom.findUnique({ where: { userId: req.user.id } });
-  const hasExistingImage = existingRoom?.background?.startsWith("http") ?? false;
+  // Upsert room early so we have an ID for the image pipeline
+  const room = await prisma.digitalRoom.upsert({
+    where: { userId: req.user.id },
+    create: {
+      userId: req.user.id,
+      theme: result.era,
+      ambient: result.ambient,
+      background: result.background,
+      musicTheme: result.musicTheme,
+      nostalgiaData: result as unknown as object,
+    },
+    update: {
+      theme: result.era,
+      ambient: result.ambient,
+      musicTheme: result.musicTheme,
+      nostalgiaData: result as unknown as object,
+    },
+  });
 
-  // Generate photorealistic room image with DALL-E 3 (non-fatal, cached)
+  // ── Emotional hash cache check ─────────────────────────────────────────
+  // Skip DALL-E if the emotional identity hasn't changed
+  const emotionalHash = buildEmotionalHash({
+    era: result.era,
+    region: culturalProfile.region,
+    lightingProfile: result.atmosphere.lightingProfile,
+    roomEnergy: result.identity.emotionalTone,
+  });
+  const hashUnchanged = room.emotionalHash === emotionalHash;
+
   let imageUrl: string | undefined;
-  if (forceImage || !hasExistingImage) {
+
+  if (!forceImage && hashUnchanged && room.imageUrl) {
+    // Same emotional state — return cached persistent URL
+    imageUrl = room.imageUrl;
+    console.log(`[reconstruct] Emotional hash unchanged — reusing persistent image`);
+  } else {
+    // Generate new image with DALL-E 3
     try {
       const openai = getOpenAI();
       if (openai) {
@@ -179,33 +211,30 @@ export async function reconstruct(req: AuthedRequest, res: Response): Promise<vo
           quality: "standard",
           style: "natural",
         });
-        imageUrl = imgResp.data?.[0]?.url ?? undefined;
+        const openAiUrl = imgResp.data?.[0]?.url;
+        if (openAiUrl) {
+          // Download from OpenAI + upload to R2 (persistent)
+          imageUrl = await persistRoomImage({
+            userId: req.user.id,
+            roomId: room.id,
+            openAiUrl,
+            room: result,
+            region: culturalProfile.region,
+          });
+        }
       }
     } catch (imgErr) {
-      console.warn("[reconstruct] DALL-E image generation failed (non-fatal):", imgErr);
+      console.warn("[reconstruct] Image pipeline failed (non-fatal):", imgErr);
+      // Attempt to restore last known good image
+      imageUrl = (await restoreRoomImage(room.id)) ?? room.imageUrl ?? undefined;
     }
-  } else {
-    imageUrl = existingRoom?.background ?? undefined;
   }
 
+  // Update room with final image URL and items
   if (apply) {
-    const room = await prisma.digitalRoom.upsert({
-      where: { userId: req.user.id },
-      create: {
-        userId: req.user.id,
-        theme: result.era,
-        ambient: result.ambient,
-        background: imageUrl ?? result.background,
-        musicTheme: result.musicTheme,
-        nostalgiaData: result as unknown as object,
-      },
-      update: {
-        theme: result.era,
-        ambient: result.ambient,
-        background: imageUrl ?? result.background,
-        musicTheme: result.musicTheme,
-        nostalgiaData: result as unknown as object,
-      },
+    await prisma.digitalRoom.update({
+      where: { id: room.id },
+      data: { background: imageUrl ?? result.background },
     });
     await prisma.roomItem.deleteMany({ where: { roomId: room.id } });
     await prisma.roomItem.createMany({
@@ -231,7 +260,6 @@ export async function reconstruct(req: AuthedRequest, res: Response): Promise<vo
   });
 
   // Persist cultural profile detected from this reconstruction
-  const culturalProfile = buildCulturalProfileFromInput(input);
   await prisma.userCulturalProfile.upsert({
     where: { userId: req.user.id },
     create: {

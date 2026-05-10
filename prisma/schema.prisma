@@ -160,20 +160,40 @@ model Message {
 
 // ==================== DIGITAL ROOMS — Phase 7 ====================
 model DigitalRoom {
-  id             String   @id @default(uuid())
-  userId         String   @unique @map("user_id")
-  theme          String   @default("madrugada-2003")
-  background     String?
-  musicTheme     String?  @map("music_theme")
-  ambient        String?  // rain | crt | warm | neon | calm | wind
-  nostalgiaData  Json?    @map("nostalgia_data") // full EnhancedRoom profile
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id                String    @id @default(uuid())
+  userId            String    @unique @map("user_id")
+  theme             String    @default("madrugada-2003")
+  background        String?
+  musicTheme        String?   @map("music_theme")
+  ambient           String?   // rain | crt | warm | neon | calm | wind
+  nostalgiaData     Json?     @map("nostalgia_data")  // full EnhancedRoom profile
+  imageUrl          String?   @map("image_url")        // persistent R2 URL
+  imageVersion      Int       @default(1) @map("image_version")
+  emotionalHash     String?   @map("emotional_hash")   // cache key
+  lastGeneratedAt   DateTime? @map("last_generated_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items RoomItem[]
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items         RoomItem[]
+  imageVersions RoomImageVersion[]
 
   @@map("digital_rooms")
+}
+
+model RoomImageVersion {
+  id            String   @id @default(cuid())
+  roomId        String   @map("room_id")
+  imageUrl      String   @map("image_url")
+  emotionalHash String   @map("emotional_hash")
+  version       Int
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  room DigitalRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@index([roomId, emotionalHash])
+  @@map("room_image_versions")
 }
 
 model RoomItem {
