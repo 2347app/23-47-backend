@@ -7,6 +7,8 @@
 
 import type { EnhancedRoom } from "./types";
 import type { RoomSchema } from "./room-schema-engine";
+import { deriveSpatialRelationships, buildSpatialFragment } from "./spatial-relationship-engine";
+import { buildCulturalDetailFragment } from "./cultural-detail-engine";
 
 // ── Universal negative constraints — always applied ───────────────────────
 
@@ -189,6 +191,11 @@ export function buildSpatialPrompt(
   }
 
   // ── 8. Temporal + cultural context ───────────────────────────────────
+  const spatialRel = deriveSpatialRelationships(schema);
+  sections.push(`SPATIAL & CAMERA: ${buildSpatialFragment(spatialRel)}`);
+
+  sections.push(buildCulturalDetailFragment(schema, detectedYear, room.imperfectionLevel));
+
   sections.push(
     `Spain, year ${detectedYear}. Middle-class apartment. ` +
     `Spanish domestic furniture (brown wood, IKEA equivalents). ` +
