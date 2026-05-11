@@ -13,7 +13,7 @@ export interface RoomSchema {
     roomSize?:   "small" | "medium" | "large";
   };
   walls: {
-    color?:         string;           // e.g. "light blue", "white", "cream"
+    color?:         string;           // e.g. "light blue", "sky blue", "white", "cream"
     texture?:       string;
     decorations?:   string[];         // ONLY if explicitly mentioned
     postersAllowed: boolean;          // false unless user explicitly mentions posters/photos
@@ -28,7 +28,7 @@ export interface RoomSchema {
     desk?:     { shape?: string; position?: string; material?: string };
     bed?:      { type?: string; position?: string };
     wardrobe?: { present: boolean };
-    chair?:    { type?: string };
+    chair?:    { type?: string; color?: string };
     shelves?:  { present: boolean; contents?: string };
   };
   computer: {
@@ -38,10 +38,11 @@ export interface RoomSchema {
     messengerOpen?: boolean;
   };
   lighting: {
-    natural:    boolean;
+    natural:     boolean;
+    bright?:     boolean;             // true if user says "iluminada", "con luz", "luminosa"
     artificial?: string;
-    quality?:   string;
-    timeOfDay?: string;
+    quality?:    string;
+    timeOfDay?:  string;
   };
   atmosphere: {
     music?:    string;
@@ -143,15 +144,27 @@ export function buildFallbackSchema(rawInput: string): RoomSchema {
   }
 
   const mentioned: string[] = [];
-  if (/messenger/.test(lower))               mentioned.push("MSN Messenger open on screen");
-  if (/escritorio en l|mesa en l/.test(lower)) mentioned.push("L-shaped desk");
-  if (/ventana abierta/.test(lower))          mentioned.push("open window");
-  if (/crt|tubo/.test(lower))                mentioned.push("CRT monitor");
-  if (/persiana/.test(lower))                mentioned.push("venetian blind half-closed");
-  if (/ventilador/.test(lower))              mentioned.push("white oscillating fan");
-  if (/nokia|movil|móvil/.test(lower))       mentioned.push("Nokia phone on desk");
-  if (/ps2|playstation/.test(lower))         mentioned.push("PlayStation 2 visible");
-  if (/winamp/.test(lower))                  mentioned.push("Winamp open on screen");
+  if (/messenger/.test(lower))                        mentioned.push("MSN Messenger open and visible on screen");
+  if (/escritorio en l|mesa en l/.test(lower))         mentioned.push("L-shaped corner desk");
+  if (/ventana abierta/.test(lower))                   mentioned.push("open window letting in daylight");
+  if (/crt|tubo/.test(lower))                         mentioned.push("CRT monitor (thick curved screen)");
+  if (/persiana/.test(lower))                         mentioned.push("venetian blind half-closed");
+  if (/ventilador/.test(lower))                       mentioned.push("white oscillating fan");
+  if (/nokia|movil|móvil/.test(lower))                mentioned.push("Nokia phone on desk");
+  if (/ps2|playstation/.test(lower))                  mentioned.push("PlayStation 2 visible");
+  if (/winamp/.test(lower))                           mentioned.push("Winamp open on screen");
+  if (/futbol[íi]n.*lego|lego.*futbol[íi]n/.test(lower)) mentioned.push("Lego football table toy on the desk");
+  if (/silla.*roja|roja.*silla/.test(lower))          mentioned.push("RED office chair (bright red color)");
+  if (/silla.*verde|verde.*silla/.test(lower))        mentioned.push("green office chair");
+  if (/silla.*azul|azul.*silla/.test(lower))          mentioned.push("blue office chair");
+
+  // Forbid invented items when user didn't mention them
+  if (!/estanteri|estante|librer|shelf/.test(lower))     forbidden.push("invented_shelves", "wall_shelves");
+  if (!/foto|retrato|imagen en|fotos en/.test(lower))    forbidden.push("framed_photos", "family_photos_on_shelves");
+  if (!/poster|cartel/.test(lower))                     forbidden.push("posters");
+  if (!/lamp|foco|luz de escritorio/.test(lower))       forbidden.push("desk_lamp (not mentioned)");
+
+  const isBright = /iluminad|luminosa|con luz|bien lit|mucha luz|clarita/.test(lower);
 
   return {
     geometry: {
@@ -170,7 +183,16 @@ export function buildFallbackSchema(rawInput: string): RoomSchema {
       desk: /escritorio|mesa de escritorio|mesa del pc/.test(lower)
         ? {
             shape:    /en l|tipo l/.test(lower) ? "L" : undefined,
-            position: /debajo.*ventana|bajo.*ventana/.test(lower) ? "under window" : undefined,
+            position: /debajo.*ventana|bajo.*ventana|ventana.*escritorio/.test(lower) ? "directly under window" : undefined,
+          }
+        : undefined,
+      chair: /silla/.test(lower)
+        ? {
+            type:  "office chair",
+            color: /silla.*roja|roja.*silla/.test(lower) ? "bright red" :
+                   /silla.*verde|verde.*silla/.test(lower) ? "green" :
+                   /silla.*azul|azul.*silla/.test(lower) ? "blue" :
+                   /silla.*negra|negra.*silla/.test(lower) ? "black" : undefined,
           }
         : undefined,
     },
@@ -181,8 +203,10 @@ export function buildFallbackSchema(rawInput: string): RoomSchema {
       programs:      buildPrograms(lower),
     },
     lighting: {
-      natural:    /ventana|luz natural|sol|tarde|luz del día/.test(lower),
-      timeOfDay:  extractTimeOfDay(lower),
+      natural:   /ventana|luz natural|sol|tarde|luz del día/.test(lower),
+      bright:    isBright,
+      timeOfDay: extractTimeOfDay(lower),
+      quality:   isBright ? "bright daylight, well-lit room, no dark shadows" : undefined,
     },
     atmosphere: {
       music:  /flamenco/.test(lower) ? "flamenco background music" :
@@ -197,11 +221,11 @@ export function buildFallbackSchema(rawInput: string): RoomSchema {
 }
 
 function extractWallColor(lower: string): string | undefined {
-  if (/pared azul clar|azul pastel|azul suave/.test(lower)) return "light blue";
-  if (/pared azul/.test(lower)) return "blue";
+  if (/azul clar|azul cel|azul casi cel|celeste|azul pastel|azul suave/.test(lower)) return "sky blue / light celestial blue";
+  if (/pared azul|azul oscur/.test(lower)) return "blue";
   if (/pared blanca|blanco/.test(lower)) return "white";
-  if (/pared verde/.test(lower)) return "green";
-  if (/pared amarilla/.test(lower)) return "yellow";
+  if (/pared verde/.test(lower)) return "light green";
+  if (/pared amarilla/.test(lower)) return "pale yellow";
   if (/pared beige|pared crema/.test(lower)) return "beige";
   return undefined;
 }

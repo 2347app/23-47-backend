@@ -92,7 +92,9 @@ export function buildSpatialPrompt(
   // ── 3. Wall configuration ─────────────────────────────────────────────
   const wallParts: string[] = [];
   if (schema.walls.color) {
-    wallParts.push(`walls painted ${schema.walls.color}`);
+    wallParts.push(
+      `ALL walls MUST be painted ${schema.walls.color} — this is critical, do not change wall color`,
+    );
   }
   if (!schema.walls.postersAllowed) {
     wallParts.push(
@@ -116,6 +118,11 @@ export function buildSpatialPrompt(
   }
   if (schema.furniture.bed) {
     furniture.push(`bed${schema.furniture.bed.type ? ` (${schema.furniture.bed.type})` : ""}`);
+  }
+  if (schema.furniture.chair?.color) {
+    furniture.push(`office chair with ${schema.furniture.chair.color} color — exact color is important`);
+  } else if (schema.furniture.chair) {
+    furniture.push("office chair");
   }
   if (schema.furniture.shelves?.present) {
     furniture.push(`shelves${schema.furniture.shelves.contents ? ` with ${schema.furniture.shelves.contents}` : ""}`);
@@ -144,9 +151,12 @@ export function buildSpatialPrompt(
 
   // ── 6. Lighting ───────────────────────────────────────────────────────
   const lighting: string[] = [];
+  if (schema.lighting.bright) {
+    lighting.push("BRIGHT WELL-LIT ROOM — no dark shadows, full daylight, no moody darkness");
+  }
   if (schema.lighting.timeOfDay) lighting.push(schema.lighting.timeOfDay);
   if (schema.lighting.natural && schema.windows.open) {
-    lighting.push("natural light entering through open window");
+    lighting.push("natural daylight flooding in through open window");
   }
   if (schema.lighting.quality) lighting.push(schema.lighting.quality);
 
