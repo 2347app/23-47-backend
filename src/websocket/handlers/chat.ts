@@ -78,6 +78,7 @@ export function registerChatHandlers(io: Server, socket: AuthedSocket): void {
     if (!payload?.receiverId) return;
     io.to(`user:${payload.receiverId}`).emit("chat:nudge", {
       from: socket.userId,
+      fromUsername: socket.username,
       at: Date.now(),
     });
   });
