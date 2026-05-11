@@ -6,137 +6,62 @@
 
 import type { RoomSchema } from "./room-schema-engine";
 
-interface CulturalDetailPack {
-  architecture:    string[];
-  objects:         string[];
-  technology:      string[];
-  lighting:        string[];
-  msn?:            string;
-  imperfections:   string[];
+interface CulturalTexturePack {
+  floorTexture:   string;
+  wallTexture:    string;
+  windowFrame:    string;
+  lightQuality:   string;
+  crtDescription: string;
+  msn:            string;
+  imperfections:  string[];
 }
 
 // ── Era-specific cultural packs ───────────────────────────────────────────
 
-const SPAIN_2000_2010: CulturalDetailPack = {
-  architecture: [
-    "white PVC window frame",
-    "thin aluminum venetian blind (persiana)",
-    "white painted walls (slightly yellowed near ceiling)",
-    "beige or light parquet laminate floor",
-    "white radiator on wall below window",
-    "visible door frame with simple handle",
-  ],
-  objects: [
-    "stack of CD-Rs with handwritten labels in marker",
-    "cheap rectangular mousepad",
-    "PS/2 keyboard (grey, worn keys)",
-    "beige or dark tower PC case on floor beside desk",
-    "small cheap speakers (Logitech or Creative brand, black plastic)",
-    "printed school notes scattered on desk corner",
-  ],
-  technology: [
-    "CRT monitor with slight screen curvature and visible refresh lines",
-    "Windows XP taskbar visible at bottom of screen",
-    "Logitech webcam clipped to top of CRT",
-    "Sony Ericsson or Nokia phone charging on desk corner",
-  ],
-  lighting: [
-    "warm incandescent light from cheap ceiling fixture",
-    "Mediterranean quality light — slightly warm, slightly dusty",
-  ],
-  msn: [
-    "MSN Messenger 7.5 interface clearly visible on screen:",
-    "blue title bar reading 'MSN Messenger', butterfly logo top-left",
-    "contact list with green online dot icons and usernames with emoticons",
-    "white chat window open in foreground with typed messages visible",
-    "status bar showing 'Online' in bottom-left of window",
-  ].join(" "),
-  imperfections: [
-    "chair slightly angled, not perfectly straight",
-    "one CD case open on desk edge",
-    "cable from tower PC loosely coiled on floor",
-    "desk surface has faint ring marks from glasses",
+const SPAIN_2000_2010: CulturalTexturePack = {
+  floorTexture:   "light beige laminate parquet floor, slightly worn in front of the desk",
+  wallTexture:    "walls painted with matte interior latex, very slight paint imperfections near ceiling",
+  windowFrame:    "white PVC window frame with simple hardware",
+  lightQuality:   "Mediterranean interior: slightly warm colour temperature, soft natural light, no dramatic shadows",
+  crtDescription: "CRT monitor with thick plastic bezel, slight screen curvature, visible scanlines, glass surface reflects faint window light",
+  msn:            "MSN Messenger 7.5 on screen: blue header bar with butterfly logo, contact list with green online dots and usernames with emoticons, white chat window with conversation, Windows XP taskbar at bottom",
+  imperfections:  [
+    "chair positioned slightly off-angle from the desk",
+    "desk surface shows faint marks from daily use",
+    "keyboard slightly dusty between keys",
   ],
 };
 
-const SPAIN_1995_2000: CulturalDetailPack = {
-  architecture: [
-    "wooden window frame (darker wood tone)",
-    "wallpaper with subtle pattern OR simple painted plaster",
-    "patterned ceramic tile floor (Spanish mosaic)",
-    "cast iron or painted steel radiator",
-  ],
-  objects: [
-    "VHS tapes stacked on shelf",
-    "Game Boy or Walkman on desk",
-    "printed encyclopedia volumes on shelf",
-    "football sticker album partially visible",
-  ],
-  technology: [
-    "older CRT monitor (thicker, rounded edges)",
-    "Windows 95/98 desktop visible if computer present",
-    "dial-up modem box visible near computer",
-  ],
-  lighting: [
-    "warm tungsten light",
-    "slightly bluish daylight from window in contrast",
-  ],
-  imperfections: [
-    "loose papers on desk",
-    "pencil case open",
-    "worn desk surface from years of use",
+const SPAIN_1995_2000: CulturalTexturePack = {
+  floorTexture:   "dark patterned ceramic mosaic tile floor, typical Spanish apartment",
+  wallTexture:    "walls with subtle embossed wallpaper or flat painted plaster",
+  windowFrame:    "dark wood or aluminum window frame",
+  lightQuality:   "warm tungsten interior light, slight contrast with cooler daylight from window",
+  crtDescription: "older CRT monitor with very thick rounded bezel, convex screen, dark plastic housing",
+  msn:            "",
+  imperfections:  [
+    "chair legs slightly uneven",
+    "desk surface worn at the centre",
+    "keyboard visibly used",
   ],
 };
 
-const SPAIN_2010_2015: CulturalDetailPack = {
-  architecture: [
-    "modern white PVC frame, double-glazed window",
-    "light grey or white painted walls",
-    "light oak or white laminate floor",
-  ],
-  objects: [
-    "iPhone or Android phone charging on desk",
-    "headphones on desk or hanging from monitor",
-    "energy drink can (Monster or Burn)",
-  ],
-  technology: [
-    "flat screen LCD monitor",
-    "laptop partially open beside desktop",
-    "HDMI or USB cables on desk",
-  ],
-  lighting: [
-    "LED desk lamp",
-    "cooler natural daylight from low-emissivity window",
-  ],
-  imperfections: [
-    "headphone cable slightly tangled",
-    "sticky notes on monitor bezel",
+const SPAIN_2010_2015: CulturalTexturePack = {
+  floorTexture:   "light oak laminate floor, clean",
+  wallTexture:    "smooth white or light grey painted walls",
+  windowFrame:    "modern white PVC double-glazed window frame",
+  lightQuality:   "cooler neutral daylight, clean interior light",
+  crtDescription: "flat LCD monitor, thin bezel, matte screen",
+  msn:            "",
+  imperfections:  [
+    "slight cable clutter behind the desk",
+    "desk has minor surface marks",
+    "monitor bezel slightly dusty",
   ],
 };
 
 // ── Cultural markers modifier ─────────────────────────────────────────────
 
-function getMarkerDetails(schema: RoomSchema): string[] {
-  const extras: string[] = [];
-  const music = schema.atmosphere.music?.toLowerCase() ?? "";
-
-  if (music.includes("flamenco")) {
-    extras.push("warm late-afternoon Mediterranean light quality");
-    extras.push("sense of summer heat — window open to let air circulate");
-  }
-  if (music.includes("rock") || music.includes("metal")) {
-    extras.push("darker corner mood, monitor as primary light focus");
-  }
-  if (schema.atmosphere.season === "summer") {
-    extras.push("slight heat haze quality to the light");
-    extras.push("persiana half-closed to keep out afternoon sun");
-  }
-  if (schema.computer.messengerOpen) {
-    extras.push("blue MSN Messenger interface glow reflected on nearby surfaces");
-  }
-
-  return extras;
-}
 
 // ── Main export ───────────────────────────────────────────────────────────
 
@@ -152,40 +77,46 @@ export function buildCulturalDetailFragment(
 
   const parts: string[] = [];
 
-  // Architecture — always inject 2-3 period-accurate architectural details
-  const archSample = pack.architecture.slice(0, 3);
-  parts.push(`ARCHITECTURAL DETAILS: ${archSample.join(", ")}`);
+  // Surface textures only — describe HOW existing surfaces look, never add new objects
+  parts.push(
+    `SURFACE TEXTURES (background context only, do NOT add objects): ` +
+    `floor: ${pack.floorTexture}. walls: ${pack.wallTexture}. window frame: ${pack.windowFrame}. ` +
+    `light: ${pack.lightQuality}`,
+  );
 
-  // Technology context
-  if (schema.computer.present && pack.technology.length > 0) {
-    parts.push(`TECHNOLOGY DETAILS: ${pack.technology.slice(0, 2).join(", ")}`);
+  // CRT detail — only if computer is present
+  if (schema.computer.present && schema.computer.monitorType !== "flat") {
+    parts.push(`CRT SCREEN APPEARANCE: ${pack.crtDescription}`);
   }
 
-  // MSN Messenger — specific visual instructions
+  // MSN — only if user explicitly mentioned Messenger
   if (schema.computer.messengerOpen && pack.msn) {
-    parts.push(`MSN MESSENGER INTERFACE: ${pack.msn}`);
+    parts.push(`MSN MESSENGER ON SCREEN (show this UI exactly): ${pack.msn}`);
   }
 
-  // Cultural objects (1-2 only, not overwhelming)
-  const objSample = pack.objects.slice(0, 2);
-  parts.push(`PERIOD OBJECTS (subtle, not dominant): ${objSample.join(", ")}`);
-
-  // Marker-specific details
-  const markerDetails = getMarkerDetails(schema);
-  if (markerDetails.length > 0) {
-    parts.push(`CULTURAL ATMOSPHERE: ${markerDetails.join(", ")}`);
-  }
-
-  // Human imperfection — controlled by level (0.0 = perfect, 1.0 = very lived-in)
-  if (imperfectionLevel > 0.3) {
-    const imperfSample = pack.imperfections.slice(
-      0,
-      imperfectionLevel > 0.7 ? 3 : 2,
-    );
+  // Open window — override any default closed/blind assumption
+  if (schema.windows.open) {
     parts.push(
-      `HUMAN IMPERFECTION (subtle, NOT chaotic): ${imperfSample.join(", ")}. ` +
-      `These are signs of real habitation, NOT artistic clutter.`,
+      `WINDOW IS OPEN: the window must be clearly open, outside visible through the glass. ` +
+      `If a blind exists it is pulled UP or fully open. Do NOT show a closed or half-closed window.`,
     );
+  }
+
+  // Light atmosphere
+  const music = schema.atmosphere.music?.toLowerCase() ?? "";
+  if (music.includes("flamenco") || schema.atmosphere.season === "summer") {
+    parts.push("LIGHT ATMOSPHERE: warm Mediterranean afternoon light, slightly hazy air, soft warm tone on surfaces");
+  }
+
+  // Human imperfection — only on already-mentioned objects
+  if (imperfectionLevel > 0.3) {
+    const items: string[] = [];
+    if (schema.furniture.chair)  items.push(pack.imperfections[0]);
+    if (schema.furniture.desk)   items.push(pack.imperfections[1]);
+    if (schema.computer.present) items.push(pack.imperfections[2]);
+    if (items.length > 0) {
+      parts.push(`SUBTLE LIVED-IN DETAIL on existing objects only: ${items.join(", ")}`);
+    }
   }
 
   return parts.join("\n");
