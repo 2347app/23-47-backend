@@ -24,48 +24,9 @@ import {
   detectYear,
 } from "../services/cultural-memory.service";
 import { buildTemporalContextString } from "../data/temporal-world";
+import { parseRoomSchema } from "../ai/nostalgia/room-schema-engine";
+import { buildSpatialPrompt } from "../ai/nostalgia/spatial-prompt-builder";
 
-const LIGHTING_DESC: Record<string, string> = {
-  warm_lamp_glow: "warm incandescent desk lamp casting golden light, shadows on walls",
-  cold_blue_monitor: "cold blue CRT monitor glow as the only light source",
-  crt_amber: "amber CRT screen warmth, soft scanline light",
-  mixed_ambient: "warm lamp mixed with cold monitor blue, contrasting shadows",
-  darkness_screen: "nearly dark room illuminated only by a glowing monitor screen",
-  afternoon_sun: "late afternoon sunlight filtering through partially closed blinds",
-};
-
-const TIME_DESC: Record<string, string> = {
-  afternoon: "golden late afternoon",
-  evening: "early evening dusk",
-  night: "night",
-  late_night: "2am deep night",
-};
-
-function buildRoomImagePrompt(room: EnhancedRoom, rawInput?: string): string {
-  const lighting = LIGHTING_DESC[room.atmosphere.lightingProfile] ?? "dim atmospheric lighting";
-  const time = TIME_DESC[room.atmosphere.timeOfDay] ?? "night";
-  const objects = room.items.slice(0, 10).map((i) => i.label).join(", ");
-  const grain = room.atmosphere.crtGrain ? "subtle analog film grain, " : "";
-  const foggy = room.atmosphere.depthFog ? "slight atmospheric haze in the background, " : "";
-
-  // Temporal World Engine — inject year-specific Spanish cultural context
-  const detectedYear = rawInput ? detectYear(rawInput) : 2005;
-  const culturalProfile = rawInput ? buildCulturalProfileFromInput(rawInput) : null;
-  const temporalCtx = buildTemporalContextString(detectedYear, culturalProfile?.region);
-  const spanishObjects = "white oscillating fan, persiana venetian blind half-closed, Spanish ceramic tiles, brown wooden furniture, CRT television, cheap bookshelf with textbooks and manga";
-
-  return (
-    `Authentic photorealistic ${room.era} Spanish teenage bedroom in Spain, documentary photography style, ` +
-    `35mm film aesthetic, ${grain}${foggy}shallow depth of field. ` +
-    `${time}, ${lighting}. ` +
-    `Spanish middle-class apartment bedroom. Objects: ${objects}, ${spanishObjects}. ` +
-    `${room.description} ` +
-    `Cultural context — ${temporalCtx} ` +
-    `Perspective: slightly elevated corner angle showing full room depth. ` +
-    `Lived-in, cluttered, NOT staged. Real peeling posters, worn surfaces, Mediterranean light quality. ` +
-    `Feels like a real Spanish memory from ${detectedYear}. Emotional, intimate, reconocible.`
-  ).slice(0, 3800);
-}
 
 export async function eraExperience(req: AuthedRequest, res: Response): Promise<void> {
   if (!req.user) throw new HttpError(401, "unauthorized");
@@ -213,9 +174,16 @@ export async function reconstruct(req: AuthedRequest, res: Response): Promise<vo
     try {
       const openai = getOpenAI();
       if (openai) {
+        // ── Authentic Spatial Reconstruction Pipeline ────────────────
+        const detectedYear   = detectYear(input);
+        const temporalCtx    = buildTemporalContextString(detectedYear, culturalProfile.region);
+        const roomSchema     = await parseRoomSchema(input);
+        const spatialPrompt  = buildSpatialPrompt(result, roomSchema, detectedYear, temporalCtx);
+        console.log(`[reconstruct] spatial prompt (${spatialPrompt.length}ch), postersAllowed=${roomSchema.walls.postersAllowed}, forbidden=${roomSchema.forbiddenElements.length}`);
+
         const imgResp = await openai.images.generate({
           model: "dall-e-3",
-          prompt: buildRoomImagePrompt(result, input),
+          prompt: spatialPrompt,
           n: 1,
           size: "1792x1024",
           quality: "standard",
