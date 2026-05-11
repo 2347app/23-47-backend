@@ -195,16 +195,50 @@ export function buildSpatialPrompt(
     temporalCtx,
   );
 
-  // ── 9. Explicitly required objects ───────────────────────────────────
-  if (schema.explicitlyMentioned.length > 0) {
-    sections.push(`MUST INCLUDE EXACTLY: ${schema.explicitlyMentioned.join("; ")}.`);
+  // ── 9. WHITELIST — complete room inventory ────────────────────────────
+  // DALL-E 3 respects whitelists better than blacklists.
+  // Enumerate every object that should exist. Nothing else is allowed.
+  const inventoryItems: string[] = [...schema.explicitlyMentioned];
+
+  if (schema.furniture.desk) {
+    const d = schema.furniture.desk;
+    inventoryItems.push(
+      `${d.shape ? d.shape + "-shaped " : ""}wooden desk${d.position ? " (" + d.position + ")" : ""}`,
+    );
+  }
+  if (schema.furniture.chair) {
+    inventoryItems.push(
+      `ONE single ${schema.furniture.chair.color ? schema.furniture.chair.color + " " : ""}office chair`,
+    );
+  }
+  if (schema.furniture.bed) inventoryItems.push("bed");
+  if (schema.computer.present) {
+    inventoryItems.push(
+      schema.computer.monitorType === "crt" ? "CRT monitor on desk" : "computer monitor on desk",
+    );
+  }
+  if (schema.windows.open) {
+    inventoryItems.push(`open window${schema.windows.hasBlind ? " with venetian blind" : ""}`);
   }
 
-  // ── 10. Hard negative constraints (most important) ───────────────────
+  const uniqueInventory = [...new Set(inventoryItems)].filter(Boolean);
+
+  if (uniqueInventory.length > 0) {
+    sections.push(
+      `COMPLETE ROOM INVENTORY — only these items exist, nothing else: ${uniqueInventory.join(" | ")}. ` +
+      `Do NOT invent or add any object, plant, lamp, photo, decoration, or furniture not in this list.`,
+    );
+  }
+
+  // ── 10. Hard negative constraints ─────────────────────────────────────
   const allForbidden = [
     ...(!schema.walls.postersAllowed
-      ? ["posters of ANY kind on walls", "photos on walls", "stickers on walls", "wall art"]
+      ? ["posters", "photos on walls", "portraits on walls", "photo collages", "stickers on walls", "wall art"]
       : []),
+    "multiple chairs — only ONE chair is allowed",
+    "plants or flowers (not mentioned by user)",
+    "desk lamps (not mentioned by user)",
+    "extra decorative objects not in the inventory",
     ...getCulturalForbidden(schema),
     ...schema.forbiddenElements,
     ...UNIVERSAL_FORBIDDEN,
@@ -213,7 +247,7 @@ export function buildSpatialPrompt(
   const uniqueForbidden = [...new Set(allForbidden)];
 
   sections.push(
-    `STRICTLY DO NOT INCLUDE ANY OF THESE: ${uniqueForbidden.join("; ")}.`,
+    `ABSOLUTELY DO NOT ADD: ${uniqueForbidden.join("; ")}.`,
   );
 
   // ── 11. Authenticity directive ────────────────────────────────────────
