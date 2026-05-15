@@ -28,6 +28,12 @@ const UNIVERSAL_FORBIDDEN = [
   "excessive film grain or noise",
   "editorial or fashion photography style",
   "over-saturated colors",
+  "human faces or portraits hanging on walls",
+  "framed photographs of people on walls",
+  "family portraits or paintings of faces",
+  "eerie or unsettling imagery anywhere in the room",
+  "religious icons or crosses (unless specified)",
+  "dim horror-movie lighting",
 ];
 
 // ── Cultural incompatibility rules ───────────────────────────────────────

@@ -57,8 +57,8 @@ export function createIo(httpServer: HttpServer): Server {
       credentials: true,
     },
     transports: ["polling", "websocket"],
-    pingInterval: 25_000,
-    pingTimeout: 20_000,
+    pingInterval: 12_000,
+    pingTimeout:   8_000,
   });
 
   if (redisAvailable && redisPub && redisSub) {
