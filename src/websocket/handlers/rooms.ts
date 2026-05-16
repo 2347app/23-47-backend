@@ -3,10 +3,11 @@ import type { AuthedSocket } from "../io";
 import { prisma } from "../../services/prisma";
 
 const ATMOSPHERIC_ROOMS = [
-  { slug: "rainy-2007",    title: "Lluvia de 2007",    atmosphereType: "rain" },
-  { slug: "summer-2003",   title: "Verano de 2003",    atmosphereType: "warm" },
-  { slug: "messenger-2006",title: "Messenger 2006",    atmosphereType: "crt"  },
-  { slug: "midnight-2009", title: "Madrugada de 2009", atmosphereType: "calm" },
+  { slug: "verano-2003",           title: "Verano de 2003",           atmosphereType: "warm"       },
+  { slug: "madrugada-2004",        title: "Madrugada de 2004",        atmosphereType: "calm"       },
+  { slug: "lluvia-2005",           title: "Lluvia de 2005",           atmosphereType: "rain"       },
+  { slug: "verano-social-2006",    title: "Verano Social 2006",       atmosphereType: "social"     },
+  { slug: "noche-melancolica-2007",title: "Noche Melancólica de 2007",atmosphereType: "melancholic" },
 ];
 
 async function ensureRoom(slug: string) {
