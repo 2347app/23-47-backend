@@ -61,6 +61,36 @@ export function registerRoomHandlers(io: Server, socket: AuthedSocket) {
     }
   );
 
+  socket.on(
+    "room:chat",
+    ({ slug, content }: { slug: string; content: string }) => {
+      if (!content?.trim() || !slug) return;
+      if (!socket.rooms.has(`room:${slug}`)) return;
+      io.to(`room:${slug}`).emit("room:chat", {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        fromUserId: socket.userId,
+        fromUsername: socket.username,
+        content: content.trim(),
+        at: Date.now(),
+      });
+    }
+  );
+
+  socket.on(
+    "rooms:sync",
+    async (_: unknown, ack?: (res: Record<string, { userId: string; username: string }[]>) => void) => {
+      const result: Record<string, { userId: string; username: string }[]> = {};
+      for (const room of ATMOSPHERIC_ROOMS) {
+        const sockets = await io.in(`room:${room.slug}`).fetchSockets();
+        result[room.slug] = sockets.map((s) => ({
+          userId: (s as any).userId as string,
+          username: (s as any).username as string,
+        }));
+      }
+      ack?.(result);
+    }
+  );
+
   socket.on("room:leave", ({ slug }: { slug: string }) => {
     socket.leave(`room:${slug}`);
     io.to(`room:${slug}`).emit("room:presence", {
